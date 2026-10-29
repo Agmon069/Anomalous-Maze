@@ -63,8 +63,10 @@
     const playAgainBtn = $("playAgainBtn");
     const muteButton = $("muteButton");
     const mapToggleBtn = $("mapToggleBtn");
+    const fullscreenBtn = $("fullscreenBtn");
     const quickRestartBtn = $("quickRestartBtn");
     const howToPlayBtn = $("howToPlayBtn");
+    const gameShell = document.querySelector(".game-shell");
 
     // Stats display
     const goKeysFound = $("goKeysFound");
@@ -1947,13 +1949,27 @@
                 minimapOverlay.classList.toggle("hidden");
             });
 
+            if (fullscreenBtn) {
+                fullscreenBtn.addEventListener("click", () => this.toggleFullscreen());
+            }
+
+            const onFullscreenChange = () => this.updateFullscreenUI();
+            document.addEventListener("fullscreenchange", onFullscreenChange);
+            document.addEventListener("webkitfullscreenchange", onFullscreenChange);
+            document.addEventListener("mozfullscreenchange", onFullscreenChange);
+            document.addEventListener("MSFullscreenChange", onFullscreenChange);
+
             howToPlayBtn.addEventListener("click", () => {
-                alert("CARA BERMAIN:\n\n• W (atau Panah Atas) : Maju 1 petak\n• A (atau Panah Kiri) : Menoleh Kiri (90°)\n• D (atau Panah Kanan) : Menoleh Kanan (90°)\n• S (atau Panah Bawah) : Putar Balik (180°)\n• Kumpulkan 3 Kunci Kuno lalu cari Gerbang Keluar!");
+                alert("CARA BERMAIN ANOMALOUS MAZE: 1981:\n\n• W (atau Panah Atas) : Maju 1 petak ke depan\n• A (atau Panah Kiri) : Menoleh ke Kiri (90°)\n• D (atau Panah Kanan) : Menoleh ke Kanan (90°)\n• S (atau Panah Bawah) : Putar Balik ke Belakang (180°)\n• M : Buka / Tutup Peta Radar\n• F : Mode Layar Penuh (Fullscreen)\n• Kumpulkan 3 Kunci Kuno lalu cari Gerbang Keluar!");
             });
 
             window.addEventListener("keydown", (e) => {
                 if (e.code === "KeyM") {
                     minimapOverlay.classList.toggle("hidden");
+                }
+                if (e.code === "KeyF" && !e.ctrlKey && !e.altKey && !e.metaKey) {
+                    e.preventDefault();
+                    this.toggleFullscreen();
                 }
                 if (this.state === "START" && (e.code === "Enter" || e.code === "Space")) {
                     this.startNewGame();
@@ -1965,6 +1981,55 @@
                     this.startNewGame();
                 }
             });
+        }
+
+        toggleFullscreen() {
+            const isFull = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+
+            if (!isFull) {
+                const target = gameShell || document.documentElement;
+                if (target.requestFullscreen) {
+                    target.requestFullscreen().catch(err => {
+                        console.warn("Fullscreen request error:", err);
+                        if (gameShell) gameShell.classList.toggle("is-fullscreen");
+                        this.updateFullscreenUI();
+                    });
+                } else if (target.webkitRequestFullscreen) {
+                    target.webkitRequestFullscreen();
+                } else if (target.mozRequestFullScreen) {
+                    target.mozRequestFullScreen();
+                } else if (target.msRequestFullscreen) {
+                    target.msRequestFullscreen();
+                } else {
+                    if (gameShell) gameShell.classList.toggle("is-fullscreen");
+                    this.updateFullscreenUI();
+                }
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen().catch(err => console.warn(err));
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.mozCancelFullScreen) {
+                    document.mozCancelFullScreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                }
+                if (gameShell) gameShell.classList.remove("is-fullscreen");
+                this.updateFullscreenUI();
+            }
+        }
+
+        updateFullscreenUI() {
+            const isFull = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement || (gameShell && gameShell.classList.contains("is-fullscreen")));
+            if (fullscreenBtn) {
+                fullscreenBtn.textContent = isFull ? "🗗 Keluar Penuh" : "⛶ Layar Penuh";
+                fullscreenBtn.setAttribute("aria-pressed", isFull ? "true" : "false");
+                fullscreenBtn.title = isFull ? "Keluar Layar Penuh [F]" : "Layar Penuh [F]";
+            }
+            if (this.renderer) {
+                setTimeout(() => this.renderer.resize(), 60);
+                setTimeout(() => this.renderer.resize(), 200);
+            }
         }
 
         hideAllModals() {
