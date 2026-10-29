@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Anomalous Maze: 1981 — 3D Dungeon Crawler</title>
+    <link rel="stylesheet" href="style.css">
+    <script>
+        // Global error catcher to guarantee any issue is immediately visible
+        window.addEventListener('error', function(e) {
+            console.error("Game Error:", e.message, e.filename, e.lineno);
+            const errDiv = document.getElementById("debugError");
+            if (errDiv) {
+                errDiv.style.display = "block";
+                errDiv.textContent = "Error: " + e.message + " (" + e.filename + ":" + e.lineno + ")";
+            }
+        });
+    </script>
+</head>
+<body>
+    <main class="app">
+        <!-- Error Banner (hidden by default) -->
+        <div id="debugError" style="display:none; background:#dc2626; color:#fff; padding:10px; border-radius:8px; font-weight:bold; margin-bottom:10px;"></div>
+
+        <!-- Header -->
+        <header class="page-header">
+            <p class="eyebrow">GRID-BASED DUNGEON CRAWLER · PERSONA ANOMALOUS TOWER × 3D MONSTER MAZE (1981)</p>
+            <h1 class="game-title">
+                <span class="title-main">ANOMALOUS MAZE</span>
+                <span class="title-year">1981</span>
+            </h1>
+            <p class="subtitle">Kumpulkan 3 Kunci Kuno di menara labirin, hindari buruan Rex sang monster buas, dan temukan gerbang keluar sebelum terlambat!</p>
+        </header>
+
+        <!-- Game Container -->
+        <section class="game-shell" aria-label="Area permainan Dungeon">
+            <!-- Top HUD Bar -->
+            <div class="top-hud">
+                <!-- 3 Keys Inventory -->
+                <div class="keys-container" title="Koleksi 3 Kunci untuk Membuka Pintu Keluar">
+                    <span class="hud-label">KUNCI LABIRIN (0/3)</span>
+                    <div class="key-slots">
+                        <div class="key-slot" id="keySlot1" title="Kunci Zamrud (Emerald Key)">
+                            <span class="key-icon">🗝️</span>
+                            <span class="key-name">Zamrud</span>
+                        </div>
+                        <div class="key-slot" id="keySlot2" title="Kunci Ambar (Amber Key)">
+                            <span class="key-icon">🗝️</span>
+                            <span class="key-name">Ambar</span>
+                        </div>
+                        <div class="key-slot" id="keySlot3" title="Kunci Delima (Ruby Key)">
+                            <span class="key-icon">🗝️</span>
+                            <span class="key-name">Delima</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Heartbeat / Terror Sensor -->
+                <div class="hud-item heartbeat-hud" id="heartbeatCard">
+                    <span class="hud-label">DETAK JANTUNG</span>
+                    <div class="heartbeat-inner">
+                        <span class="heart-icon" id="heartIcon">❤️</span>
+                        <strong id="bpmValue">72</strong>
+                        <span class="hud-small">BPM</span>
+                    </div>
+                </div>
+
+                <!-- Current Facing Direction -->
+                <div class="hud-item facing-hud">
+                    <span class="hud-label">ARAH HADAP</span>
+                    <strong id="hudFacingText">UTARA (N)</strong>
+                </div>
+
+                <!-- Survival Timer -->
+                <div class="hud-item timer-hud">
+                    <span class="hud-label">WAKTU BERTAHAN</span>
+                    <strong id="survivalTimer">00:00</strong>
+                </div>
+
+                <!-- Control Buttons -->
+                <div class="hud-buttons">
+                    <button id="muteButton" class="icon-button" type="button" aria-pressed="false" title="Suara ON/OFF">🔊 Suara ON</button>
+                    <button id="mapToggleBtn" class="icon-button map-btn" type="button" title="Buka / Tutup Peta Labirin [M]">🗺️ Peta</button>
+                </div>
+            </div>
+
+            <!-- Monster Maze Suspense Ticker (Homage to 3D Monster Maze 1981) -->
+            <div class="monster-ticker" id="monsterTicker" aria-live="polite">
+                <span class="ticker-prefix">STATUS MONSTER:</span>
+                <span class="ticker-text" id="tickerText">MONSTER SEDANG MENUNGGU DI KEGELAPAN...</span>
+            </div>
+
+            <!-- Viewport Wrap -->
+            <div class="canvas-wrap" id="canvasWrap">
+                <canvas id="gameCanvas" width="960" height="540" aria-label="Tampilan 3D Dungeon Crawler"></canvas>
+
+                <!-- Terror Vignette / Blood Overlay -->
+                <div class="vignette-overlay" id="vignetteOverlay"></div>
+
+                <!-- Persona Anomalous Tower Radar Minimap -->
+                <div class="persona-minimap-wrapper" id="minimapOverlay">
+                    <div class="compass-label compass-top">N</div>
+                    <div class="minimap-middle-row">
+                        <div class="compass-label compass-left">W</div>
+                        <div class="persona-radar-box">
+                            <canvas id="minimapCanvas" width="130" height="130"></canvas>
+                        </div>
+                        <div class="compass-label compass-right">E</div>
+                    </div>
+                    <div class="compass-label compass-bottom">S</div>
+                </div>
+
+                <!-- Notification Toast Inside Viewport -->
+                <div class="game-toast" id="gameToast"></div>
+
+                <!-- Interaction Prompt -->
+                <div class="interaction-prompt" id="interactionPrompt">Tekan [W] untuk Membuka Pintu</div>
+
+                <!-- Touch Controls (Mobile Friendly) -->
+                <div class="touch-controls" id="touchControls">
+                    <div class="dpad">
+                        <button type="button" class="touch-btn dpad-up" id="btnUp" aria-label="Maju (W)">W ▲</button>
+                        <div class="dpad-middle">
+                            <button type="button" class="touch-btn dpad-left" id="btnLeft" aria-label="Menoleh Kiri (A)">◀ A</button>
+                            <button type="button" class="touch-btn dpad-down" id="btnDown" aria-label="Putar Belakang (S)">▼ S</button>
+                            <button type="button" class="touch-btn dpad-right" id="btnRight" aria-label="Menoleh Kanan (D)">D ▶</button>
+                        </div>
+                    </div>
+                    <div class="touch-actions">
+                        <button type="button" class="touch-action-btn" id="btnTurnLeft" aria-label="Putar Kiri">↺ Belok Kiri</button>
+                        <button type="button" class="touch-action-btn" id="btnTurnRight" aria-label="Putar Kanan">↻ Belok Kanan</button>
+                    </div>
+                </div>
+
+                <!-- START SCREEN OVERLAY (Shorter and wider banner layout) -->
+                <div class="screen-overlay" id="startScreen">
+                    <div class="modal-box modal-wide">
+                        <div class="badge-tag">ANOMALOUS TOWER · SINCE 1981</div>
+                        <h2 class="modal-title">ANOMALOUS MAZE <span class="year-accent">1981</span></h2>
+                        <p class="modal-desc">
+                            Jelajahi labirin petak (*grid*) ala <strong>Persona: Anomalous Tower</strong> & bertahanlah dari buruan predator <strong>Rex the Monster</strong> (1981)!
+                        </p>
+
+                        <!-- 2-Column Wide Grid for Mission & Controls -->
+                        <div class="modal-grid">
+                            <div class="modal-col">
+                                <h3 class="col-title">🎯 MISI UTAMA</h3>
+                                <div class="mission-checklist">
+                                    <div class="checklist-item">
+                                        <span class="check-icon">1</span>
+                                        <div><strong>Kumpulkan 3 Kunci Kuno</strong>: Zamrud, Ambar, Delima di sudut labirin.</div>
+                                    </div>
+                                    <div class="checklist-item">
+                                        <span class="check-icon">2</span>
+                                        <div><strong>Hindari Rex sang Monster</strong>: Berpatroli petak demi petak dengan pendengaran tajam!</div>
+                                    </div>
+                                    <div class="checklist-item">
+                                        <span class="check-icon">3</span>
+                                        <div><strong>Buka Gerbang Besi Kuno</strong> di sudut labirin setelah mengumpulkan ketiga kunci!</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-col">
+                                <h3 class="col-title">🎮 KONTROL GERAK</h3>
+                                <div class="controls-guide">
+                                    <div>• <kbd>W</kbd> : <strong>Maju 1 Petak ke Depan</strong></div>
+                                    <div>• <kbd>A</kbd> : <strong>Menoleh ke Kiri (90°)</strong></div>
+                                    <div>• <kbd>D</kbd> : <strong>Menoleh ke Kanan (90°)</strong></div>
+                                    <div>• <kbd>S</kbd> : <strong>Putar Balik ke Belakang (180°)</strong></div>
+                                    <div>• <kbd>M</kbd> : Buka / Tutup Peta Labirin</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button id="startGameBtn" class="cta-button" type="button">MASUKI LABIRIN & MULAI</button>
+                    </div>
+                </div>
+
+                <!-- GAME OVER SCREEN OVERLAY (Caught by Monster) -->
+                <div class="screen-overlay hidden" id="gameOverScreen">
+                    <div class="modal-box gameover-box">
+                        <div class="skull-anim">💀</div>
+                        <h2 class="danger-title">KAMU DIMANGSA OLEH REX!</h2>
+                        <p class="modal-desc" id="gameOverDesc">
+                            Rex menyergap petak tempatmu berdiri! Langkahmu terhenti di dalam lorong labirin yang gelap gulita.
+                        </p>
+                        <div class="stats-summary">
+                            <div class="stat-box">
+                                <span class="stat-label">KUNCI DITEMUKAN</span>
+                                <strong id="goKeysFound">0 / 3</strong>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-label">WAKTU BERTAHAN</span>
+                                <strong id="goSurvivalTime">00:00</strong>
+                            </div>
+                        </div>
+                        <div class="screen-actions">
+                            <button id="restartBtn" class="cta-button retry-button" type="button">COBA LAGI</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VICTORY SCREEN OVERLAY (Escaped) -->
+                <div class="screen-overlay hidden" id="victoryScreen">
+                    <div class="modal-box victory-box">
+                        <div class="trophy-anim">🏆</div>
+                        <h2 class="victory-title">BERHASIL KELUAR DARI ANOMALOUS MAZE!</h2>
+                        <p class="modal-desc">
+                            Ketiga kunci kuno berhasil membuka gerbang besi tua. Kamu selamat dari buruan predator legendaris tahun 1981!
+                        </p>
+                        <div class="stats-summary">
+                            <div class="stat-box">
+                                <span class="stat-label">TOTAL KUNCI</span>
+                                <strong class="gold-text">3 / 3</strong>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-label">WAKTU KELUAR</span>
+                                <strong id="vicTime">01:45</strong>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-label">REKOR TERBAIK</span>
+                                <strong id="vicBestTime">--:--</strong>
+                            </div>
+                        </div>
+                        <div class="screen-actions">
+                            <button id="playAgainBtn" class="cta-button victory-button" type="button">MAINKAN LAGI DENGAN LABIRIN BARU</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom HUD / Quick Status Bar -->
+            <div class="bottom-hud">
+                <span>Status Pemain: <strong id="playerStatus" class="status-pill">WASPADA</strong></span>
+                <span>Arah Hadap: <strong id="playerFacingText">UTARA (N)</strong></span>
+                <span>Jarak Monster: <strong id="monsterDistanceText">JAUH</strong></span>
+                <span>Petak: <strong id="playerCoords">Labirin [Baris: 1, Kolom: 1]</strong></span>
+                <span class="hud-tip">💡 Tips: Tekan [W] untuk maju, [A]/[D] untuk menoleh, dan [S] untuk putar balik!</span>
+            </div>
+        </section>
+
+        <!-- Help and Lore Panel -->
+        <section class="help-panel">
+            <div class="lore-text">
+                <h2>Tentang Game: Anomalous Maze (1981)</h2>
+                <p>
+                    <strong>Anomalous Maze: 1981</strong> menggabungkan kontrol eksplorasi petak (*grid crawler*) dari RPG legendaris <em>Persona: Anomalous Tower (異空の塔)</em> dengan kecerdasan buatan predator dan suspensi teks terminal dari pelopor game horor 3D pertama di dunia, <em>3D Monster Maze (1981)</em> karya Malcolm Evans. Gunakan pendengaran dan perhatikan detak jantungmu saat menjelajahi koridor batu pasir kuno!
+                </p>
+            </div>
+            <div class="help-controls">
+                <button id="howToPlayBtn" class="secondary-button" type="button">📖 Panduan</button>
+                <button id="quickRestartBtn" class="secondary-button" type="button">🔄 Mulai Ulang</button>
+            </div>
+        </section>
+
+        <footer class="footer-note">
+            Anomalous Maze: 1981 · Persona Style Dungeon Crawler & 3D Monster Maze Homage · WebGL 3D & Web Audio API
+        </footer>
+    </main>
+
+    <script src="game.js"></script>
+</body>
+</html>
